@@ -1,34 +1,155 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>Heróis do Bairro</title>
-    <script src="https://unpkg.com/phaser@3.55.2/dist/phaser.min.js"></script>
-    <style>
-      textarea {
-        position: absolute;
-        top: 250px;
-        left: 10px;
-        width: 300px;
-        height: 80px;
-        font-size: 14px;
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Jogo 1x1 P2P com WebRTC</title>
+  <style>
+    canvas { border: 1px solid black; }
+    #linkArea, #sdpInput, #connectBtn { margin: 10px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
+  <div>
+    <button id="generateLink">Gerar Link de Convite</button>
+    <br>
+    <textarea id="linkArea" rows="4" cols="50" readonly></textarea>
+    <br>
+    <textarea id="sdpInput" rows="4" cols="50" placeholder="Cole o SDP do adversário aqui"></textarea>
+    <br>
+    <button id="connectBtn">Conectar ao Adversário</button>
+  </div>
+
+  <script>
+    // Configuração do canvas
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Estado do jogador
+    const player = { x: 50, y: 350, width: 20, height: 20, vy: 0, jumping: false };
+    const opponent = { x: 700, y: 350, width: 20, height: 20 };
+    const gravity = 0.5;
+    const jumpForce = -10;
+    const moveSpeed = 5;
+
+    // WebRTC
+    let peerConnection;
+    let dataChannel;
+    const isHost = !window.location.hash.includes('join'); // Host se não tiver hash
+
+    // Configuração WebRTC
+    function setupWebRTC() {
+      peerConnection = new RTCPeerConnection();
+
+      // Criar canal de dados (se for host)
+      if (isHost) {
+        dataChannel = peerConnection.createDataChannel('gameChannel');
+        setupDataChannel(dataChannel);
       }
-      .button {
-        position: absolute;
-        padding: 10px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        cursor: pointer;
-        font-size: 16px;
+
+      // Quando receber o canal de dados (se for peer)
+      peerConnection.ondatachannel = (event) => {
+        dataChannel = event.channel;
+        setupDataChannel(dataChannel);
+      };
+
+      // Gerenciar ICE candidates
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate === null && isHost) {
+          const sdp = btoa(JSON.stringify(peerConnection.localDescription));
+          const link = `${window.location.origin}${window.location.pathname}#join=${sdp}`;
+          document.getElementById('linkArea').value = link;
+        }
+      };
+    }
+
+    // Configurar canal de dados
+    function setupDataChannel(channel) {
+      channel.onopen = () => {
+        console.log('Canal de dados aberto!');
+        gameLoop(); // Iniciar o jogo quando conectar
+      };
+      channel.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        opponent.x = data.x;
+        opponent.y = data.y;
+      };
+    }
+
+    // Gerar oferta (host)
+    document.getElementById('generateLink').addEventListener('click', async () => {
+      if (!isHost) return;
+      setupWebRTC();
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+    });
+
+    // Conectar como peer
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+      const sdpInput = document.getElementById('sdpInput').value;
+      if (!sdpInput) return;
+
+      setupWebRTC();
+      const sdp = JSON.parse(atob(sdpInput));
+      await peerConnection.setRemoteDescription(sdp);
+
+      if (!isHost) {
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        document.getElementById('sdpInput').value = btoa(JSON.stringify(answer));
       }
-      #copyButton {
-        top: 340px;
-        left: 10px;
+    });
+
+    // Lógica de conexão inicial para peer
+    if (!isHost) {
+      document.getElementById('generateLink').disabled = true;
+      const sdp = window.location.hash.split('join=')[1];
+      if (sdp) {
+        document.getElementById('sdpInput').value = sdp;
       }
-    </style>
-  </head>
-  <body>
-    <div id="game"></div>
-    <script src="game.js"></script>
-  </body>
+    }
+
+    // Controles do jogador
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'w' && !player.jumping) {
+        player.vy = jumpForce;
+        player.jumping = true;
+      } else if (e.key === 'a') {
+        player.x -= moveSpeed;
+      } else if (e.key === 'd') {
+        player.x += moveSpeed;
+      }
+      // Limitar à tela
+      player.x = Math.max(0, Math.min(player.x, canvas.width - player.width));
+    });
+
+    // Loop do jogo
+    function gameLoop() {
+      // Física do jogador
+      player.vy += gravity;
+      player.y += player.vy;
+      if (player.y > canvas.height - player.height) {
+        player.y = canvas.height - player.height;
+        player.vy = 0;
+        player.jumping = false;
+      }
+
+      // Enviar posição para o adversário
+      if (dataChannel && dataChannel.readyState === 'open') {
+        dataChannel.send(JSON.stringify({ x: player.x, y: player.y }));
+      }
+
+      // Desenhar
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+      ctx.fillStyle = 'red';
+      ctx.fillRect(opponent.x, opponent.y, opponent.width, opponent.height);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Iniciar o loop apenas quando conectado, controlado pelo canal de dados
+  </script>
+</body>
 </html>
