@@ -6,28 +6,31 @@
   <style>
     canvas { border: 1px solid black; }
     #linkArea, #answerArea, #sdpInput, #connectBtn { margin: 10px; }
-    textarea { font-family: monospace; }
+    textarea { font-family: monospace; width: 100%; max-width: 600px; }
     button:disabled { opacity: 0.5; }
+    #status { color: red; }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width equipe="800" height="400"></canvas>
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
   <div>
     <button id="generateLink">Gerar Link de Convite (Host)</button>
     <br>
-    <textarea id="linkArea" rows="4" cols="50" readonly placeholder="Link de convite aparecerá aqui (Host)"></textarea>
+    <textarea id="linkArea" rows="4" readonly placeholder="Link de convite aparecerá aqui (Host)"></textarea>
     <br>
-    <textarea id="answerArea" rows="4" cols="50" readonly placeholder="Resposta SDP aparecerá aqui (Peer)"></textarea>
+    <textarea id="answerArea" rows="4" readonly placeholder="Resposta SDP aparecerá aqui (Peer)"></textarea>
     <br>
-    <textarea id="sdpInput" rows="4" cols="50" placeholder="Cole o SDP do adversário aqui"></textarea>
+    <textarea id="sdpInput" rows="4" placeholder="Cole o SDP do adversário aqui"></textarea>
     <br>
     <button id="connectBtn">Conectar ao Adversário</button>
+    <div id="status"></div>
   </div>
 
   <script>
     // Configuração do canvas
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const statusDiv = document.getElementById('status');
 
     // Estado do jogador
     const player = { x: 50, y: 350, width: 20, height: 20, vy: 0, jumping: false };
@@ -41,7 +44,15 @@
     let dataChannel = null;
     const isHost = !window.location.hash.includes('join');
 
-    // Configuração WebRTC
+    // Configuração WebRTC com STUN
+    const configuration = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+        // Opcional: Adicione TURN se necessário (exige credenciais)
+      ]
+    };
+
     function setupWebRTC() {
       if (peerConnection) {
         peerConnection.close();
@@ -49,7 +60,8 @@
         dataChannel = null;
       }
 
-      peerConnection = new RTCPeerConnection();
+      peerConnection = new RTCPeerConnection(configuration);
+      updateStatus('WebRTC inicializado.');
 
       if (isHost) {
         dataChannel = peerConnection.createDataChannel('gameChannel');
@@ -67,23 +79,39 @@
           if (isHost) {
             const link = `${window.location.origin}${window.location.pathname}#join=${encodeURIComponent(sdp)}`;
             document.getElementById('linkArea').value = link;
+            updateStatus('Link de convite gerado. Copie e envie ao adversário.');
           } else {
             document.getElementById('answerArea').value = sdp;
+            updateStatus('Resposta SDP gerada. Copie e envie ao host.');
           }
         }
       };
 
       peerConnection.onconnectionstatechange = () => {
         console.log('Estado da conexão:', peerConnection.connectionState);
+        updateStatus(`Estado da conexão: ${peerConnection.connectionState}`);
+        if (peerConnection.connectionState === 'failed') {
+          updateStatus('Falha na conexão. Tente novamente.');
+          resetConnection();
+        }
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        console.log('Estado ICE:', peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === 'disconnected') {
+          updateStatus('Conexão perdida.');
+          resetConnection();
+        }
       };
     }
 
-    // Configurar canal de dados
     function setupDataChannel(channel) {
       channel.onopen = () => {
         console.log('Canal de dados aberto!');
+        updateStatus('Conexão estabelecida! Jogo iniciado.');
         document.getElementById('connectBtn').disabled = true;
         document.getElementById('generateLink').disabled = true;
+        document.getElementById('sdpInput').disabled = true;
         gameLoop();
       };
       channel.onmessage = (event) => {
@@ -97,9 +125,31 @@
       };
       channel.onclose = () => {
         console.log('Canal de dados fechado.');
-        document.getElementById('connectBtn').disabled = false;
-        document.getElementById('generateLink').disabled = !isHost;
+        updateStatus('Conexão fechada.');
+        resetConnection();
       };
+      channel.onerror = (err) => {
+        console.error('Erro no canal:', err);
+        updateStatus('Erro na conexão.');
+      };
+    }
+
+    function resetConnection() {
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+        dataChannel = null;
+      }
+      document.getElementById('connectBtn').disabled = false;
+      document.getElementById('generateLink').disabled = !isHost;
+      document.getElementById('sdpInput').disabled = false;
+      document.getElementById('linkArea').value = '';
+      document.getElementById('answerArea').value = '';
+      document.getElementById('sdpInput').value = '';
+    }
+
+    function updateStatus(message) {
+      statusDiv.textContent = message;
     }
 
     // Gerar oferta (host)
@@ -114,7 +164,7 @@
         console.log('Oferta criada. Estado:', peerConnection.signalingState);
       } catch (err) {
         console.error('Erro ao gerar oferta:', err);
-        alert('Erro ao gerar oferta: ' + err.message);
+        updateStatus('Erro ao gerar oferta: ' + err.message);
       }
     });
 
@@ -122,7 +172,7 @@
     document.getElementById('connectBtn').addEventListener('click', async () => {
       const sdpInput = document.getElementById('sdpInput').value.trim();
       if (!sdpInput) {
-        alert('Por favor, cole um SDP válido.');
+        updateStatus('Por favor, cole um SDP válido.');
         return;
       }
 
@@ -134,7 +184,7 @@
             throw new Error('Formato de SDP inválido.');
           }
         } catch (err) {
-          alert('SDP inválido. Certifique-se de colar um SDP codificado em base64 válido.');
+          updateStatus('SDP inválido. Certifique-se de colar um SDP codificado em base64 válido.');
           console.error('Erro ao decodificar SDP:', err);
           return;
         }
@@ -147,11 +197,11 @@
 
         // Validação de estado
         if (isHost && peerConnection.signalingState !== 'have-local-offer') {
-          alert('Erro: O host deve gerar uma oferta primeiro (clique em "Gerar Link de Convite").');
+          updateStatus('Erro: O host deve gerar uma oferta primeiro.');
           return;
         }
         if (!isHost && peerConnection.signalingState !== 'stable') {
-          alert('Erro: O peer deve estar em estado inicial. Reinicie a página.');
+          updateStatus('Erro: Reinicie a conexão.');
           setupWebRTC();
         }
 
@@ -165,7 +215,7 @@
         }
       } catch (err) {
         console.error('Erro ao conectar:', err);
-        alert(`Erro ao conectar: ${err.message}`);
+        updateStatus(`Erro ao conectar: ${err.message}`);
       }
     });
 
@@ -177,10 +227,10 @@
         try {
           const sdp = JSON.parse(atob(decodeURIComponent(sdpEncoded)));
           document.getElementById('sdpInput').value = btoa(JSON.stringify(sdp));
-          console.log('SDP do link carregado:', sdp);
+          updateStatus('SDP do link carregado. Clique em "Conectar" para prosseguir.');
         } catch (err) {
           console.error('Erro ao decodificar SDP do link:', err);
-          alert('Erro ao carregar SDP do link. Cole o SDP manualmente.');
+          updateStatus('Erro ao carregar SDP do link. Cole o SDP manualmente.');
         }
       }
     }
@@ -211,7 +261,11 @@
 
       // Enviar posição
       if (dataChannel && dataChannel.readyState === 'open') {
-        dataChannel.send(JSON.stringify({ x: player.x, y: player.y }));
+        try {
+          dataChannel.send(JSON.stringify({ x: player.x, y: player.y }));
+        } catch (err) {
+          console.error('Erro ao enviar dados:', err);
+        }
       }
 
       // Desenhar
