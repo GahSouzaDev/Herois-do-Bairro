@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebRTC P2P Game</title>
+    <title>Jogo P2P WebRTC</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -61,38 +61,38 @@
 </head>
 <body>
     <div id="instructions">
-        <h2>WebRTC P2P Game</h2>
-        <p><strong>Instructions:</strong></p>
+        <h2>Jogo P2P WebRTC</h2>
+        <p><strong>Instruções:</strong></p>
         <ul>
-            <li><strong>Player 1 (Host):</strong> Click "Create Game" to generate an invite code. Copy and send it to Player 2.</li>
-            <li><strong>Player 2:</strong> Paste Player 1's code in "Paste Invite Code" and click "Join Game". Copy the response code and send it back to Player 1.</li>
-            <li><strong>Player 1:</strong> Paste Player 2's response in "Paste Response Code" and click "Connect".</li>
-            <li><strong>Controls:</strong>
+            <li><strong>Jogador 1 (Host):</strong> Clique em "Criar Jogo" para gerar um código de convite. Copie e envie para o Jogador 2.</li>
+            <li><strong>Jogador 2:</strong> Cole o código do Jogador 1 em "Colar Código de Convite" e clique em "Entrar no Jogo". Copie o código de resposta e envie de volta ao Jogador 1.</li>
+            <li><strong>Jogador 1:</strong> Cole a resposta do Jogador 2 em "Colar Código de Resposta" e clique em "Conectar".</li>
+            <li><strong>Controles:</strong>
                 <ul>
-                    <li><strong>PC:</strong> A (left), D (right), W (jump)</li>
-                    <li><strong>Mobile:</strong> Use touch buttons below</li>
+                    <li><strong>PC:</strong> A (esquerda), D (direita), W (pular)</li>
+                    <li><strong>Celular:</strong> Use os botões de toque abaixo</li>
                 </ul>
             </li>
         </ul>
     </div>
     <div id="connection">
-        <h3>Connect with Another Player</h3>
-        <button id="createBtn">Create Game</button>
+        <h3>Conectar com Outro Jogador</h3>
+        <button id="createBtn">Criar Jogo</button>
         <div>
-            <textarea id="offerText" placeholder="Invite code appears here" readonly></textarea>
-            <button id="copyOfferBtn" disabled>Copy Invite Code</button>
+            <textarea id="offerText" placeholder="Código de convite aparece aqui" readonly></textarea>
+            <button id="copyOfferBtn" disabled>Copiar Código de Convite</button>
         </div>
         <div>
-            <textarea id="pasteOfferText" placeholder="Paste invite code here"></textarea>
-            <button id="joinBtn">Join Game</button>
+            <textarea id="pasteOfferText" placeholder="Colar código de convite aqui"></textarea>
+            <button id="joinBtn">Entrar no Jogo</button>
         </div>
         <div>
-            <textarea id="answerText" placeholder="Response code appears here" readonly></textarea>
-            <button id="copyAnswerBtn" disabled>Copy Response Code</button>
+            <textarea id="answerText" placeholder="Código de resposta aparece aqui" readonly></textarea>
+            <button id="copyAnswerBtn" disabled>Copiar Código de Resposta</button>
         </div>
         <div>
-            <textarea id="pasteAnswerText" placeholder="Paste response code here"></textarea>
-            <button id="connectBtn">Connect</button>
+            <textarea id="pasteAnswerText" placeholder="Colar código de resposta aqui"></textarea>
+            <button id="connectBtn">Conectar</button>
         </div>
     </div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
@@ -103,14 +103,24 @@
     </div>
 
     <script>
-        // WebRTC Setup
-        const peerConnection = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        // Configuração WebRTC
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                // Servidor TURN público para teste (substitua por um próprio em produção)
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
+            ]
+        };
+        const peerConnection = new RTCPeerConnection(configuration);
         let dataChannel = null;
         let isHost = false;
 
-        // UI Elements
+        // Elementos da UI
         const createBtn = document.getElementById('createBtn');
         const offerText = document.getElementById('offerText');
         const copyOfferBtn = document.getElementById('copyOfferBtn');
@@ -120,8 +130,9 @@
         const copyAnswerBtn = document.getElementById('copyAnswerBtn');
         const pasteAnswerText = document.getElementById('pasteAnswerText');
         const connectBtn = document.getElementById('connectBtn');
+        const connectionDiv = document.getElementById('connection');
 
-        // Game Setup
+        // Configuração do Jogo
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const player1 = { x: 50, y: 350, vx: 0, vy: 0, width: 30, height: 30, jumping: false };
@@ -131,29 +142,35 @@
         const jumpStrength = -10;
         let gameStarted = false;
 
-        // Touch Controls
+        // Controles de Toque
         const leftBtn = document.getElementById('leftBtn');
         const rightBtn = document.getElementById('rightBtn');
         const jumpBtn = document.getElementById('jumpBtn');
         let leftPressed = false;
         let rightPressed = false;
 
-        // WebRTC Connection Logic
+        // Lógica de Conexão WebRTC
         createBtn.onclick = async () => {
-            isHost = true;
-            dataChannel = peerConnection.createDataChannel('game');
-            setupDataChannel();
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            const offerData = btoa(JSON.stringify(peerConnection.localDescription));
-            offerText.value = offerData;
-            copyOfferBtn.disabled = false;
+            try {
+                isHost = true;
+                dataChannel = peerConnection.createDataChannel('game');
+                setupDataChannel();
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                // Aguarda candidatos ICE antes de exibir
+                setTimeout(() => {
+                    offerText.value = btoa(JSON.stringify(peerConnection.localDescription));
+                    copyOfferBtn.disabled = false;
+                }, 2000); // Dá tempo para coletar ICE candidates
+            } catch (e) {
+                alert('Erro ao criar jogo: ' + e.message);
+            }
         };
 
         copyOfferBtn.onclick = () => {
             offerText.select();
             document.execCommand('copy');
-            alert('Invite code copied!');
+            alert('Código de convite copiado!');
         };
 
         joinBtn.onclick = async () => {
@@ -163,18 +180,20 @@
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-                const answerData = btoa(JSON.stringify(peerConnection.localDescription));
-                answerText.value = answerData;
-                copyAnswerBtn.disabled = false;
+                // Aguarda candidatos ICE antes de exibir
+                setTimeout(() => {
+                    answerText.value = btoa(JSON.stringify(peerConnection.localDescription));
+                    copyAnswerBtn.disabled = false;
+                }, 2000);
             } catch (e) {
-                alert('Invalid invite code');
+                alert('Código de convite inválido: ' + e.message);
             }
         };
 
         copyAnswerBtn.onclick = () => {
             answerText.select();
             document.execCommand('copy');
-            alert('Response code copied!');
+            alert('Código de resposta copiado!');
         };
 
         connectBtn.onclick = async () => {
@@ -183,17 +202,21 @@
                 const answer = JSON.parse(answerData);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
             } catch (e) {
-                alert('Invalid response code');
+                alert('Código de resposta inválido: ' + e.message);
             }
         };
 
         peerConnection.onicecandidate = (event) => {
-            if (event.candidate === null) {
-                if (isHost) {
-                    offerText.value = btoa(JSON.stringify(peerConnection.localDescription));
-                } else {
-                    answerText.value = btoa(JSON.stringify(peerConnection.localDescription));
-                }
+            if (event.candidate) {
+                console.log('Novo ICE candidate:', event.candidate);
+                // Não é necessário atualizar o offer/answer aqui, pois já esperamos candidatos
+            }
+        };
+
+        peerConnection.oniceconnectionstatechange = () => {
+            console.log('Estado da conexão ICE:', peerConnection.iceConnectionState);
+            if (peerConnection.iceConnectionState === 'failed') {
+                alert('Falha na conexão. Tente novamente ou verifique sua rede.');
             }
         };
 
@@ -204,36 +227,43 @@
 
         function setupDataChannel() {
             dataChannel.onopen = () => {
-                console.log('Data channel open');
+                console.log('Canal de dados aberto');
                 gameStarted = true;
-                connection.style.display = 'none';
+                connectionDiv.style.display = 'none';
                 gameLoop();
             };
             dataChannel.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (isHost) {
-                    player2.x = data.x;
-                    player2.y = data.y;
-                    player2.vx = data.vx;
-                    player2.vy = data.vy;
-                    player2.jumping = data.jumping;
-                } else {
-                    player1.x = data.x;
-                    player1.y = data.y;
-                    player1.vx = data.vx;
-                    player1.vy = data.vy;
-                    player1.jumping = data.jumping;
+                try {
+                    const data = JSON.parse(event.data);
+                    if (isHost) {
+                        player2.x = data.x;
+                        player2.y = data.y;
+                        player2.vx = data.vx;
+                        player2.vy = data.vy;
+                        player2.jumping = data.jumping;
+                    } else {
+                        player1.x = data.x;
+                        player1.y = data.y;
+                        player1.vx = data.vx;
+                        player1.vy = data.vy;
+                        player1.jumping = data.jumping;
+                    }
+                } catch (e) {
+                    console.error('Erro ao processar mensagem:', e);
                 }
+            };
+            dataChannel.onerror = (error) => {
+                console.error('Erro no canal de dados:', error);
             };
         }
 
-        // Game Logic
+        // Lógica do Jogo
         function updatePlayer(player) {
             player.vy += gravity;
             player.x += player.vx;
             player.y += player.vy;
 
-            // Boundaries
+            // Limites
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
             if (player.y > canvas.height - player.height) {
@@ -262,21 +292,25 @@
             updatePlayer(player2);
             draw();
 
-            // Send player data
+            // Enviar dados do jogador
             if (dataChannel && dataChannel.readyState === 'open') {
-                dataChannel.send(JSON.stringify({
-                    x: player.x,
-                    y: player.y,
-                    vx: player.vx,
-                    vy: player.vy,
-                    jumping: player.jumping
-                }));
+                try {
+                    dataChannel.send(JSON.stringify({
+                        x: player.x,
+                        y: player.y,
+                        vx: player.vx,
+                        vy: player.vy,
+                        jumping: player.jumping
+                    }));
+                } catch (e) {
+                    console.error('Erro ao enviar dados:', e);
+                }
             }
 
             requestAnimationFrame(gameLoop);
         }
 
-        // Keyboard Controls
+        // Controles de Teclado
         document.addEventListener('keydown', (e) => {
             if (!gameStarted) return;
             const player = isHost ? player1 : player2;
@@ -294,7 +328,7 @@
             if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') player.vx = 0;
         });
 
-        // Touch Controls
+        // Controles de Toque
         leftBtn.addEventListener('touchstart', () => { leftPressed = true; });
         leftBtn.addEventListener('touchend', () => { leftPressed = false; });
         rightBtn.addEventListener('touchstart', () => { rightPressed = true; });
@@ -307,7 +341,7 @@
             }
         });
 
-        // Prevent default touch behavior
+        // Prevenir comportamento padrão de toque
         document.addEventListener('touchstart', (e) => {
             if (e.target.classList.contains('touch-button')) e.preventDefault();
         }, { passive: false });
