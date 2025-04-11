@@ -5,7 +5,7 @@
   <title>Jogo 1x1 P2P com WebRTC</title>
   <style>
     canvas { border: 1px solid black; }
-    #linkArea, #sdpInput, #connectBtn { margin: 10px; }
+    #linkArea, #linkArea2, #sdpInput, #connectBtn { margin: 10px; }
   </style>
 </head>
 <body>
@@ -13,7 +13,9 @@
   <div>
     <button id="generateLink">Gerar Link de Convite</button>
     <br>
-    <textarea id="linkArea" rows="4" cols="50" readonly></textarea>
+    <textarea id="linkArea" rows="4" cols="50" readonly placeholder="Link de convite aparecerá aqui"></textarea>
+    <br>
+    <textarea id="linkArea2" rows="4" cols="50" readonly placeholder="Link de resposta aparecerá aqui"></textarea>
     <br>
     <textarea id="sdpInput" rows="4" cols="50" placeholder="Cole o SDP do adversário aqui"></textarea>
     <br>
@@ -33,12 +35,19 @@
     const moveSpeed = 5;
 
     // WebRTC
-    let peerConnection;
-    let dataChannel;
-    const isHost = !window.location.hash.includes('join'); // Host se não tiver hash
+    let peerConnection = null;
+    let dataChannel = null;
+    const isHost = !window.location.hash.includes('join');
 
     // Configuração WebRTC
     function setupWebRTC() {
+      // Fechar conexão existente, se houver
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+        dataChannel = null;
+      }
+
       peerConnection = new RTCPeerConnection();
 
       // Criar canal de dados (se for host)
@@ -55,10 +64,17 @@
 
       // Gerenciar ICE candidates
       peerConnection.onicecandidate = (event) => {
-        if (event.candidate === null && isHost) {
-          const sdp = btoa(JSON.stringify(peerConnection.localDescription));
-          const link = `${window.location.origin}${window.location.pathname}#join=${sdp}`;
-          document.getElementById('linkArea').value = link;
+        if (event.candidate === null) {
+          if (isHost) {
+            const sdp = btoa(JSON.stringify(peerConnection.localDescription));
+            const link = `${window.location.origin}${window.location.pathname}#join=${sdp}`;
+            document.getElementById('linkArea').value = link;
+          } else {
+            // Para o peer, exibir a resposta SDP
+            const sdp = btoa(JSON.stringify(peerConnection.localDescription));
+            const link = `${window.location.origin}${window.location.pathname}#answer=${sdp}`;
+            document.getElementById('linkArea2').value = link;
+          }
         }
       };
     }
@@ -67,12 +83,15 @@
     function setupDataChannel(channel) {
       channel.onopen = () => {
         console.log('Canal de dados aberto!');
-        gameLoop(); // Iniciar o jogo quando conectar
+        gameLoop();
       };
       channel.onmessage = (event) => {
         const data = JSON.parse(event.data);
         opponent.x = data.x;
         opponent.y = data.y;
+      };
+      channel.onclose = () => {
+        console.log('Canal de dados fechado.');
       };
     }
 
@@ -80,32 +99,68 @@
     document.getElementById('generateLink').addEventListener('click', async () => {
       if (!isHost) return;
       setupWebRTC();
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-    });
-
-    // Conectar como peer
-    document.getElementById('connectBtn').addEventListener('click', async () => {
-      const sdpInput = document.getElementById('sdpInput').value;
-      if (!sdpInput) return;
-
-      setupWebRTC();
-      const sdp = JSON.parse(atob(sdpInput));
-      await peerConnection.setRemoteDescription(sdp);
-
-      if (!isHost) {
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        document.getElementById('sdpInput').value = btoa(JSON.stringify(answer));
+      try {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+      } catch (err) {
+        console.error('Erro ao gerar oferta:', err);
       }
     });
 
-    // Lógica de conexão inicial para peer
+    // Conectar ao adversário
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+      const sdpInput = document.getElementById('sdpInput').value.trim();
+      if (!sdpInput) {
+        alert('Por favor, cole um SDP válido.');
+        return;
+      }
+
+      try {
+        let sdp;
+        try {
+          sdp = JSON.parse(atob(sdpInput));
+        } catch (err) {
+          alert('SDP inválido. Certifique-se de colar um SDP codificado em base64 válido.');
+          return;
+        }
+
+        // Inicializar WebRTC se não estiver inicializado
+        if (!peerConnection) {
+          setupWebRTC();
+        }
+
+        // Verificar estado da conexão
+        if (peerConnection.signalingState === 'stable' && isHost) {
+          console.warn('Conexão já está estável. Reinicie para nova conexão.');
+          alert('Conexão já estabelecida. Reinicie o processo se deseja conectar novamente.');
+          return;
+        }
+
+        // Definir descrição remota
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+
+        // Criar resposta se for peer
+        if (!isHost) {
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+        }
+      } catch (err) {
+        console.error('Erro ao conectar:', err);
+        alert(`Erro: ${err.message}`);
+      }
+    });
+
+    // Inicializar peer com SDP do link, se houver
     if (!isHost) {
       document.getElementById('generateLink').disabled = true;
-      const sdp = window.location.hash.split('join=')[1];
-      if (sdp) {
-        document.getElementById('sdpInput').value = sdp;
+      const sdpEncoded = window.location.hash.split('join=')[1];
+      if (sdpEncoded) {
+        try {
+          const sdp = JSON.parse(atob(decodeURIComponent(sdpEncoded)));
+          document.getElementById('sdpInput').value = btoa(JSON.stringify(sdp));
+        } catch (err) {
+          console.error('Erro ao decodificar SDP do link:', err);
+        }
       }
     }
 
@@ -119,13 +174,12 @@
       } else if (e.key === 'd') {
         player.x += moveSpeed;
       }
-      // Limitar à tela
       player.x = Math.max(0, Math.min(player.x, canvas.width - player.width));
     });
 
     // Loop do jogo
     function gameLoop() {
-      // Física do jogador
+      // Física
       player.vy += gravity;
       player.y += player.vy;
       if (player.y > canvas.height - player.height) {
@@ -134,7 +188,7 @@
         player.jumping = false;
       }
 
-      // Enviar posição para o adversário
+      // Enviar posição
       if (dataChannel && dataChannel.readyState === 'open') {
         dataChannel.send(JSON.stringify({ x: player.x, y: player.y }));
       }
@@ -148,8 +202,6 @@
 
       requestAnimationFrame(gameLoop);
     }
-
-    // Iniciar o loop apenas quando conectado, controlado pelo canal de dados
   </script>
 </body>
 </html>
