@@ -1,0 +1,49 @@
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: #222;
+    font-family: Arial, sans-serif;
+  }
+  
+  canvas {
+    border: 2px solid white;
+    max-width: 100%;
+    max-height: 80vh;
+  }
+  
+  #controls {
+    margin-bottom: 10px;
+  }
+  
+  #mobileControls {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .joystick {
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    display: inline-block;
+    touch-action: none;
+  }
+  
+  #shootBtn {
+    padding: 15px 30px;
+    font-size: 18px;
+    margin-left: 20px;
+  }
+  
+  @media (max-width: 600px) {
+    #mobileControls {
+      display: block;
+    }
+  }
