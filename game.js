@@ -6,11 +6,18 @@ let keys = {};
 let ws = null;
 let peerConnection = null;
 let dataChannel = null;
+let lastMoveSent = 0; // Para limitar a frequência de envio de mensagens "move"
 
 const SERVER_URL = 'wss://heroic-hope-production-bbdc.up.railway.app';
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
+    // Adicione um servidor TURN se necessário (ex.: Xirsys ou coturn)
+    // {
+    //   urls: 'turn:seu-servidor-turn.com',
+    //   username: 'seu-usuario',
+    //   credential: 'sua-senha'
+    // }
   ],
 };
 
@@ -130,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.type === 'move') {
           players[data.playerId] = data.position;
         } else if (data.type === 'shoot') {
-          bullets.push(data.bullet);
+          bullets.push({ ...data.bullet, ownerId: data.playerId });
         }
       } catch (error) {
         console.error('Erro ao processar mensagem do DataChannel:', error);
@@ -147,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startGame() {
-    players[playerId] = { x: playerId === 0 ? 100 : 700, y: 300, dx: 0, dy: 0 };
+    players[playerId] = { x: playerId === 0 ? 100 : 700, y: 300, dx: 0, dy: 0, radius: 20 };
     document.getElementById('controls').style.display = 'none';
     console.log('Jogo iniciado');
     gameLoop();
@@ -189,10 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
       y: player.y,
       dx: player.dx * 10 || 5,
       dy: player.dy * 10 || 0,
+      radius: 5, // Raio da bala para colisão
     };
-    bullets.push(bullet);
+    bullets.push({ ...bullet, ownerId: playerId });
     if (dataChannel?.readyState === 'open') {
-      dataChannel.send(JSON.stringify({ type: 'shoot', bullet }));
+      dataChannel.send(JSON.stringify({ type: 'shoot', bullet, playerId }));
     }
   }
 
@@ -217,38 +225,54 @@ document.addEventListener('DOMContentLoaded', () => {
     player.x = Math.max(0, Math.min(canvas.width, player.x + player.dx));
     player.y = Math.max(0, Math.min(canvas.height, player.y + player.dy));
 
-    if (dataChannel?.readyState === 'open') {
+    // Enviar posição com limite de frequência (a cada 50ms)
+    const now = Date.now();
+    if (now - lastMoveSent >= 50 && dataChannel?.readyState === 'open') {
       dataChannel.send(JSON.stringify({ type: 'move', playerId, position: player }));
+      lastMoveSent = now;
     }
 
+    // Atualizar balas
     bullets = bullets.filter((bullet) => {
       bullet.x += bullet.dx;
       bullet.y += bullet.dy;
       return bullet.x >= 0 && bullet.x <= canvas.width && bullet.y >= 0 && bullet.y <= canvas.height;
     });
 
+    // Verificar colisões (círculo-círculo)
     for (let bullet of bullets) {
       for (let id in players) {
-        if (id != playerId) {
+        if (id != playerId && bullet.ownerId != id) { // Evitar colisão com o próprio jogador
           const p = players[id];
-          if (p && bullet.x > p.x - 20 && bullet.x < p.x + 20 && bullet.y > p.y - 20 && bullet.y < p.y + 20) {
-            alert('Jogador atingido! Reiniciando...');
-            location.reload();
+          if (p) {
+            const dx = bullet.x - p.x;
+            const dy = bullet.y - p.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < bullet.radius + p.radius) { // Colisão detectada
+              console.log(`Jogador ${id} atingido por bala de ${bullet.ownerId}`);
+              alert('Jogador atingido! Reiniciando...');
+              location.reload();
+            }
           }
         }
       }
     }
 
+    // Renderizar
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let id in players) {
       if (players[id]) {
         ctx.fillStyle = id == playerId ? 'blue' : 'red';
-        ctx.fillRect(players[id].x - 20, players[id].y - 20, 40, 40);
+        ctx.beginPath();
+        ctx.arc(players[id].x, players[id].y, players[id].radius, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
     ctx.fillStyle = 'yellow';
     for (let bullet of bullets) {
-      ctx.fillRect(bullet.x - 5, bullet.y - 5, 10, 10);
+      ctx.beginPath();
+      ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     requestAnimationFrame(gameLoop);
