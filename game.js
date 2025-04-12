@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     currentRoomId = roomId; // Armazena o roomId para revanche
     updateStatus('Conectando ao servidor...');
+    document.getElementById('loadingOverlay').style.display = 'flex'; // Mostra o loading
     ws = new WebSocket(SERVER_URL);
     ws.onopen = () => {
       console.log('WebSocket conectado');
@@ -97,10 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
     ws.onerror = (error) => {
       console.error('Erro no WebSocket:', error);
       updateStatus('Erro ao conectar ao servidor. Tente novamente.');
+      document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
     };
     ws.onclose = (event) => {
       console.log(`WebSocket fechado. Código: ${event.code}, Motivo: ${event.reason}`);
       updateStatus('Conexão com o servidor perdida.');
+      document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
     };
 
     ws.onmessage = async (event) => {
@@ -137,10 +140,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (data.type === 'error') {
           console.error('Erro do servidor:', data.message);
           updateStatus(data.message);
+          document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
         }
       } catch (error) {
         console.error('Erro ao processar mensagem do servidor:', error);
         updateStatus('Erro ao processar mensagem do servidor.');
+        document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
       }
     };
   };
@@ -161,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (peerConnection.iceConnectionState === 'failed') {
         console.error('Conexão ICE falhou. Verifique servidores TURN ou configuração de rede.');
         updateStatus('Falha na conexão P2P. Tente novamente ou verifique sua rede.');
+        document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
       } else if (peerConnection.iceConnectionState === 'disconnected') {
         console.log('Conexão ICE desconectada. Tentando reconectar...');
         updateStatus('Conexão P2P desconectada. Tentando reconectar...');
@@ -201,10 +207,12 @@ document.addEventListener('DOMContentLoaded', () => {
     dataChannel.onerror = (error) => {
       console.error('Erro no DataChannel:', error);
       updateStatus('Erro na conexão P2P.');
+      document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
     };
     dataChannel.onclose = () => {
       console.log('DataChannel fechado');
       updateStatus('Conexão P2P fechada.');
+      document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
     };
   }
 
@@ -225,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     document.getElementById('controls').style.display = 'none';
     endGameScreen.style.display = 'none';
+    document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
     console.log('Jogo iniciado');
     gameLoop();
   }
