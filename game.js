@@ -6,18 +6,14 @@ let keys = {};
 let ws = null;
 let peerConnection = null;
 let dataChannel = null;
-let lastMoveSent = 0; // Para limitar a frequência de envio de mensagens "move"
+let lastMoveSent = 0;
+let gameActive = true; // Controla se o jogo está ativo
+let currentRoomId = null; // Armazena o roomId para revanche
 
 const SERVER_URL = 'wss://heroic-hope-production-bbdc.up.railway.app';
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    // Adicione um servidor TURN se necessário (ex.: Xirsys ou coturn)
-    // {
-    //   urls: 'turn:seu-servidor-turn.com',
-    //   username: 'seu-usuario',
-    //   credential: 'sua-senha'
-    // }
   ],
 };
 
@@ -30,6 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const roomIdInput = document.getElementById('roomId');
   const statusDiv = document.getElementById('status');
+  const endGameScreen = document.getElementById('endGameScreen');
+  const endGameMessage = document.getElementById('endGameMessage');
+  const rematchBtn = document.getElementById('rematchBtn');
+  const exitBtn = document.getElementById('exitBtn');
 
   let joystickActive = false;
   let joystickX = 0;
@@ -42,6 +42,29 @@ document.addEventListener('DOMContentLoaded', () => {
     statusDiv.textContent = message;
   }
 
+  // Função para mostrar a tela de fim de jogo
+  function showEndGameScreen(message) {
+    gameActive = false; // Para o loop do jogo
+    endGameMessage.textContent = message;
+    endGameScreen.style.display = 'block';
+  }
+
+  // Função para fechar conexões
+  function closeConnections() {
+    if (dataChannel) {
+      dataChannel.close();
+      dataChannel = null;
+    }
+    if (peerConnection) {
+      peerConnection.close();
+      peerConnection = null;
+    }
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+  }
+
   // Função para entrar na sala
   window.joinRoom = function () {
     const roomId = roomIdInput.value.trim();
@@ -51,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    currentRoomId = roomId; // Armazena o roomId para revanche
     updateStatus('Conectando ao servidor...');
     ws = new WebSocket(SERVER_URL);
     ws.onopen = () => {
@@ -138,6 +162,8 @@ document.addEventListener('DOMContentLoaded', () => {
           players[data.playerId] = data.position;
         } else if (data.type === 'shoot') {
           bullets.push({ ...data.bullet, ownerId: data.playerId });
+        } else if (data.type === 'gameOver') {
+          showEndGameScreen(data.winnerId == playerId ? 'Você venceu!' : 'Você perdeu!');
         }
       } catch (error) {
         console.error('Erro ao processar mensagem do DataChannel:', error);
@@ -154,8 +180,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startGame() {
+    players = {};
+    bullets = [];
+    gameActive = true;
     players[playerId] = { x: playerId === 0 ? 100 : 700, y: 300, dx: 0, dy: 0, radius: 20 };
     document.getElementById('controls').style.display = 'none';
+    endGameScreen.style.display = 'none';
     console.log('Jogo iniciado');
     gameLoop();
   }
@@ -188,7 +218,24 @@ document.addEventListener('DOMContentLoaded', () => {
     shoot();
   });
 
+  rematchBtn.addEventListener('click', () => {
+    closeConnections();
+    roomIdInput.value = currentRoomId; // Mantém o mesmo roomId
+    joinRoom(); // Reconecta à mesma sala
+  });
+
+  exitBtn.addEventListener('click', () => {
+    closeConnections();
+    players = {};
+    bullets = [];
+    gameActive = false;
+    document.getElementById('controls').style.display = 'block';
+    endGameScreen.style.display = 'none';
+    updateStatus('Jogo encerrado. Digite um ID de sala para jogar novamente.');
+  });
+
   function shoot() {
+    if (!gameActive) return;
     const player = players[playerId];
     if (!player) return;
     const bullet = {
@@ -196,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
       y: player.y,
       dx: player.dx * 10 || 5,
       dy: player.dy * 10 || 0,
-      radius: 5, // Raio da bala para colisão
+      radius: 5,
     };
     bullets.push({ ...bullet, ownerId: playerId });
     if (dataChannel?.readyState === 'open') {
@@ -205,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function gameLoop() {
-    if (!players[playerId]) return;
+    if (!gameActive || !players[playerId]) return;
 
     const player = players[playerId];
     player.dx = 0;
@@ -225,40 +272,39 @@ document.addEventListener('DOMContentLoaded', () => {
     player.x = Math.max(0, Math.min(canvas.width, player.x + player.dx));
     player.y = Math.max(0, Math.min(canvas.height, player.y + player.dy));
 
-    // Enviar posição com limite de frequência (a cada 50ms)
     const now = Date.now();
     if (now - lastMoveSent >= 50 && dataChannel?.readyState === 'open') {
       dataChannel.send(JSON.stringify({ type: 'move', playerId, position: player }));
       lastMoveSent = now;
     }
 
-    // Atualizar balas
     bullets = bullets.filter((bullet) => {
       bullet.x += bullet.dx;
       bullet.y += bullet.dy;
       return bullet.x >= 0 && bullet.x <= canvas.width && bullet.y >= 0 && bullet.y <= canvas.height;
     });
 
-    // Verificar colisões (círculo-círculo)
     for (let bullet of bullets) {
       for (let id in players) {
-        if (id != playerId && bullet.ownerId != id) { // Evitar colisão com o próprio jogador
+        if (id != playerId && bullet.ownerId != id) {
           const p = players[id];
           if (p) {
             const dx = bullet.x - p.x;
             const dy = bullet.y - p.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < bullet.radius + p.radius) { // Colisão detectada
+            if (distance < bullet.radius + p.radius) {
               console.log(`Jogador ${id} atingido por bala de ${bullet.ownerId}`);
-              alert('Jogador atingido! Reiniciando...');
-              location.reload();
+              if (dataChannel?.readyState === 'open') {
+                dataChannel.send(JSON.stringify({ type: 'gameOver', winnerId: bullet.ownerId }));
+              }
+              showEndGameScreen(bullet.ownerId == playerId ? 'Você venceu!' : 'Você perdeu!');
+              return; // Para o loop do jogo
             }
           }
         }
       }
     }
 
-    // Renderizar
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let id in players) {
       if (players[id]) {

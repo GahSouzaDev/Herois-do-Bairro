@@ -47,3 +47,15 @@ body {
       display: block;
     }
   }
+  
+  #endGameScreen button {
+    background: #555;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  #endGameScreen button:hover {
+    background: #777;
+  }
