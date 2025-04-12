@@ -14,11 +14,6 @@ const SERVER_URL = 'wss://heroic-hope-production-bbdc.up.railway.app';
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    {
-      urls: 'turn:turn.anyfirewall.com:443?transport=tcp',
-      username: 'testuser', // Substitua pelo seu usuário
-      credential: 'testpassword', // Substitua pela sua senha
-    },
   ],
 };
 
