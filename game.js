@@ -49,14 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const joystick = document.getElementById('joystick');
   const shootBtn = document.getElementById('shootBtn');
 
-  // Verifica se há um parâmetro 'room' na URL ao carregar a página
-  const urlParams = new URLSearchParams(window.location.search);
-  const roomFromUrl = urlParams.get('room');
-  if (roomFromUrl) {
-    roomIdInput.value = roomFromUrl; // Preenche o input com o roomId da URL
-    joinRoom(); // Entra na sala automaticamente
-  }
-
   // Função para atualizar o status
   function updateStatus(message) {
     statusDiv.textContent = message;
@@ -84,56 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ws = null;
     }
   }
-
-  // Função para gerar um roomId aleatório curto (6 caracteres)
-  function generateRoomId() {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let roomId = '';
-    for (let i = 0; i < 6; i++) {
-      roomId += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return roomId;
-  }
-
-  // Função para gerar o link de convite
-  window.generateInviteLink = function () {
-    // Se já existe um roomId (ou seja, o jogador já está em uma sala), usa o mesmo
-    const roomId = currentRoomId || generateRoomId();
-    currentRoomId = roomId; // Armazena o roomId para uso posterior
-
-    // Gera o link de convite com base na URL atual
-    const baseUrl = window.location.origin + window.location.pathname;
-    const inviteLink = `${baseUrl}?room=${roomId}`;
-
-    // Exibe o link e o botão de copiar na interface
-    const inviteLinkDiv = document.getElementById('inviteLink');
-    inviteLinkDiv.innerHTML = `
-      Link de convite: <a href="${inviteLink}" target="_blank">${inviteLink}</a>
-      <button onclick="copyInviteLink('${inviteLink}')" style="margin-left: 10px;">Copiar Link</button>
-      <span id="copyMessage" style="margin-left: 10px; color: green; display: none;">Link copiado!</span>
-    `;
-
-    // Se o jogador ainda não entrou na sala, entra automaticamente
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      roomIdInput.value = roomId; // Preenche o input com o roomId gerado
-      joinRoom(); // Entra na sala automaticamente
-    }
-  };
-
-  // Função para copiar o link para a área de transferência
-  window.copyInviteLink = function (link) {
-    navigator.clipboard.writeText(link).then(() => {
-      // Exibe a mensagem de confirmação por 2 segundos
-      const copyMessage = document.getElementById('copyMessage');
-      copyMessage.style.display = 'inline';
-      setTimeout(() => {
-        copyMessage.style.display = 'none';
-      }, 2000);
-    }).catch((error) => {
-      console.error('Erro ao copiar o link:', error);
-      alert('Erro ao copiar o link. Por favor, copie manualmente.');
-    });
-  };
 
   // Função para entrar na sala
   window.joinRoom = function () {
