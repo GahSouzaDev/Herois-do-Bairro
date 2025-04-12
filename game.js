@@ -183,7 +183,17 @@ document.addEventListener('DOMContentLoaded', () => {
     players = {};
     bullets = [];
     gameActive = true;
-    players[playerId] = { x: playerId === 0 ? 100 : 700, y: 300, dx: 0, dy: 0, radius: 20 };
+    // Inicializar jogadores com última direção de disparo (atirando um contra o outro)
+    players[playerId] = {
+      x: playerId === 0 ? 100 : 700,
+      y: 300,
+      dx: 0,
+      dy: 0,
+      radius: 20,
+      lastDx: playerId === 0 ? 1 : -1, // Jogador 0 atira para a direita, jogador 1 para a esquerda
+      lastDy: 0,
+      lastShot: 0, // Controla o tempo do último disparo
+    };
     document.getElementById('controls').style.display = 'none';
     endGameScreen.style.display = 'none';
     console.log('Jogo iniciado');
@@ -238,14 +248,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!gameActive) return;
     const player = players[playerId];
     if (!player) return;
+
+    const now = Date.now();
+    const shotInterval = 1000; // 1 disparo por segundo (1000ms)
+    if (now - player.lastShot < shotInterval) return; // Impede disparo se o intervalo não foi atingido
+
+    // Usa a última direção de movimento (ou a inicial, se não houve movimento)
+    const bulletSpeed = 10;
     const bullet = {
       x: player.x,
       y: player.y,
-      dx: player.dx * 10 || 5,
-      dy: player.dy * 10 || 0,
+      dx: (player.lastDx || 1) * bulletSpeed,
+      dy: (player.lastDy || 0) * bulletSpeed,
       radius: 5,
     };
     bullets.push({ ...bullet, ownerId: playerId });
+    player.lastShot = now; // Atualiza o tempo do último disparo
+
     if (dataChannel?.readyState === 'open') {
       dataChannel.send(JSON.stringify({ type: 'shoot', bullet, playerId }));
     }
@@ -269,8 +288,18 @@ document.addEventListener('DOMContentLoaded', () => {
       player.dy = joystickY * 5;
     }
 
+    // Atualizar a última direção de movimento (se houver movimento)
+    if (player.dx !== 0 || player.dy !== 0) {
+      const magnitude = Math.sqrt(player.dx * player.dx + player.dy * player.dy);
+      player.lastDx = player.dx / magnitude; // Normaliza a direção
+      player.lastDy = player.dy / magnitude;
+    }
+
     player.x = Math.max(0, Math.min(canvas.width, player.x + player.dx));
     player.y = Math.max(0, Math.min(canvas.height, player.y + player.dy));
+
+    // Disparo automático (a cada segundo)
+    shoot();
 
     const now = Date.now();
     if (now - lastMoveSent >= 50 && dataChannel?.readyState === 'open') {
