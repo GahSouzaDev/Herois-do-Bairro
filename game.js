@@ -291,15 +291,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Atualizar a última direção de movimento (se houver movimento)
     if (player.dx !== 0 || player.dy !== 0) {
       const magnitude = Math.sqrt(player.dx * player.dx + player.dy * player.dy);
-      player.lastDx = player.dx / magnitude; // Normaliza a direção
-      player.lastDy = player.dy / magnitude;
+      if (magnitude > 0) { // Evita divisão por zero
+        player.lastDx = player.dx / magnitude; // Normaliza a direção
+        player.lastDy = player.dy / magnitude;
+      }
     }
 
     player.x = Math.max(0, Math.min(canvas.width, player.x + player.dx));
     player.y = Math.max(0, Math.min(canvas.height, player.y + player.dy));
-
-    // Disparo automático (a cada segundo)
-    shoot();
 
     const now = Date.now();
     if (now - lastMoveSent >= 50 && dataChannel?.readyState === 'open') {
