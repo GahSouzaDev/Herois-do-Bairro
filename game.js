@@ -14,6 +14,18 @@ const SERVER_URL = 'wss://heroic-hope-production-bbdc.up.railway.app';
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    {
+      urls: 'turn:turn.speed.cloudflare.com:50000',
+      username: 'd1a7f09155fb30285724a3a056ca2edf17956674aff12909ff133dcec42994b2614cdd0a380a1b65124def1e3d0208543050d14b77d1a7533f9da35893ee2ed9',
+      credential: 'aba9b169546eb6dcc7bfb1cdf34544cf95b5161d602e3b5fa7c8342b2e9802fb',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
 };
 
@@ -122,6 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (data.type === 'ice') {
           console.log('Recebido candidato ICE:', data.candidate);
           await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        } else if (data.type === 'error') {
+          console.error('Erro do servidor:', data.message);
+          updateStatus(data.message);
         }
       } catch (error) {
         console.error('Erro ao processar mensagem do servidor:', error);
@@ -134,13 +149,27 @@ document.addEventListener('DOMContentLoaded', () => {
     peerConnection = new RTCPeerConnection(rtcConfig);
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('Enviando candidato ICE:', event.candidate);
+        console.log('Candidato ICE gerado:', event.candidate);
         ws.send(JSON.stringify({ type: 'ice', candidate: event.candidate }));
+      } else {
+        console.log('Todos os candidatos ICE foram gerados.');
       }
     };
     peerConnection.oniceconnectionstatechange = () => {
       console.log('Estado ICE:', peerConnection.iceConnectionState);
       updateStatus(`Estado da conexão: ${peerConnection.iceConnectionState}`);
+      if (peerConnection.iceConnectionState === 'failed') {
+        console.error('Conexão ICE falhou. Verifique servidores TURN ou configuração de rede.');
+        updateStatus('Falha na conexão P2P. Tente novamente ou verifique sua rede.');
+      } else if (peerConnection.iceConnectionState === 'disconnected') {
+        console.log('Conexão ICE desconectada. Tentando reconectar...');
+        updateStatus('Conexão P2P desconectada. Tentando reconectar...');
+      } else if (peerConnection.iceConnectionState === 'connected') {
+        console.log('Conexão ICE estabelecida com sucesso!');
+      }
+    };
+    peerConnection.onicegatheringstatechange = () => {
+      console.log('Estado de coleta ICE:', peerConnection.iceGatheringState);
     };
     peerConnection.ondatachannel = (event) => {
       dataChannel = event.channel;
