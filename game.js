@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!player) return;
 
     const now = Date.now();
-    const shotInterval = 1000; // 1 disparo por segundo (1000ms)
+    const shotInterval = 250; // 1 disparo por segundo (250ms)
     if (now - player.lastShot < shotInterval) return; // Impede disparo se o intervalo não foi atingido
 
     // Usa a última direção de movimento (ou a inicial, se não houve movimento)
