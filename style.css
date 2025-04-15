@@ -78,7 +78,7 @@ canvas {
   margin-left: 20px;
 }
 
-@media (max-width: 600px) {
+@media (max-aspect-ratio: 1/1) {
   #mobileControls {
     display: block;
   }
