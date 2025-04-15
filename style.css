@@ -1,87 +1,132 @@
+/* style.css */
 body {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    background: #222;
-    font-family: Arial, sans-serif;
-  }
-  
-  canvas {
-    border: 2px solid white;
-    max-width: 100%;
-    max-height: 80vh;
-  }
-  
-  #controls {
-    margin-bottom: 10px;
-  }
-  
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: #222;
+  font-family: Arial, sans-serif;
+}
+
+canvas {
+  border: 2px solid white;
+  max-width: 100%;
+  max-height: 80vh;
+  background: #000;
+}
+
+#controls {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+#roomId {
+  padding: 8px;
+  border-radius: 5px;
+  border: none;
+  font-size: 16px;
+}
+
+#controls button {
+  padding: 8px 12px;
+  border-radius: 5px;
+  border: none;
+  background: #555;
+  color: white;
+  cursor: pointer;
+}
+
+#controls button:hover {
+  background: #777;
+}
+
+#scoreboard {
+  font-size: 18px;
+  font-weight: bold;
+  background: rgba(0, 0, 0, 0.7); /* Fundo para destaque */
+  padding: 10px;
+  border-radius: 5px;
+  transition: opacity 0.5s;
+}
+
+#mobileControls {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  width: 100%;
+  text-align: center;
+}
+
+.joystick {
+  width: 100px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  display: inline-block;
+  touch-action: none;
+}
+
+#shootBtn {
+  padding: 15px 30px;
+  font-size: 18px;
+  margin-left: 20px;
+}
+
+@media (max-width: 600px) {
   #mobileControls {
-    display: none;
-    position: fixed;
-    bottom: 20px;
-    width: 100%;
-    text-align: center;
+    display: block;
   }
-  
-  .joystick {
-    width: 100px;
-    height: 100px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    display: inline-block;
-    touch-action: none;
-  }
-  
-  #shootBtn {
-    padding: 15px 30px;
-    font-size: 18px;
-    margin-left: 20px;
-  }
-  
-  @media (max-width: 600px) {
-    #mobileControls {
-      display: block;
-    }
-  }
-  
-  #endGameScreen button {
-    background: #555;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-  }
-  
-  #endGameScreen button:hover {
-    background: #777;
-  }
-  #loadingOverlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5); /* Fundo semi-transparente */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000; /* Garante que o loading fique acima de outros elementos */
-  }
-  
-  .loader {
-    width: 100px;
-    height: 100px;
-    border: 10px solid #f3f3f3; /* Cor clara para a borda */
-    border-top: 10px solid #3498db; /* Cor azul para a parte giratória */
-    border-radius: 50%;
-    animation: spin 1s linear infinite; /* Animação de rotação */
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
+}
+
+#endGameScreen button {
+  background: #555;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#endGameScreen button:hover {
+  background: #777;
+}
+
+#loadingOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.loader {
+  width: 100px;
+  height: 100px;
+  border: 10px solid #f3f3f3;
+  border-top: 10px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+#countdown {
+  z-index: 1000;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+  font-size: 60px; /* Maior para destaque */
+  background: rgba(0, 0, 0, 0.8);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

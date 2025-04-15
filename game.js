@@ -390,3 +390,25 @@ document.addEventListener('DOMContentLoaded', () => {
     requestAnimationFrame(gameLoop);
   }
 });
+// Função para gerar ID aleatório de 5 caracteres
+window.generateRandomId = function () {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 5; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  document.getElementById('roomId').value = result;
+};
+
+// Função para copiar o ID gerado
+document.getElementById('copyIdBtn').addEventListener('click', () => {
+  const roomIdInput = document.getElementById('roomId');
+  roomIdInput.select();
+  try {
+    document.execCommand('copy');
+    updateStatus('ID copiado com sucesso!');
+  } catch (err) {
+    console.error('Erro ao copiar ID:', err);
+    updateStatus('Erro ao copiar ID.');
+  }
+});
