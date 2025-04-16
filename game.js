@@ -9,6 +9,7 @@ let dataChannel = null;
 let lastMoveSent = 0;
 let gameActive = true; // Controla se o jogo está ativo
 let currentRoomId = null; // Armazena o roomId para revanche
+let scores = { 0: 0, 1: 0 }; // Placar para jogador 0 e jogador 1
 
 const SERVER_URL = 'wss://heroic-hope-production-bbdc.up.railway.app';
 const rtcConfig = {
@@ -54,12 +55,23 @@ document.addEventListener('DOMContentLoaded', () => {
     statusDiv.textContent = message;
   }
 
-  // Função para mostrar a tela de fim de jogo
-  function showEndGameScreen(message) {
-    gameActive = false; // Para o loop do jogo
-    endGameMessage.textContent = message;
-    endGameScreen.style.display = 'block';
+  // Função para mostrar a tela de fim de jogo com o placar
+// Função para mostrar a tela de fim de jogo com o placar
+// Função para mostrar a tela de fim de jogo com o placar
+function showEndGameScreen(message, isFinal = false) {
+  gameActive = false; // Para o loop do jogo
+  let displayMessage = message;
+  if (isFinal) {
+    // Determina o vencedor com base no placar
+    const winner = scores[0] >= scores[1] ? 1 : 2;
+    displayMessage = `O Jogador ${winner} ganhou!`;
+    rematchBtn.textContent = 'Zerar Placar'; // Altera o texto do botão para ambos os jogadores
+  } else {
+    rematchBtn.textContent = 'Próximo Jogo';
   }
+  endGameMessage.innerHTML = `${displayMessage}<br><span class="scoreboard">Placar: Jogador 1: ${scores[0]} | Jogador 2: ${scores[1]}</span>`; // Exibe o placar com classe
+  endGameScreen.style.display = 'block';
+}
 
   // Função para fechar conexões
   function closeConnections() {
@@ -167,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Conexão ICE falhou. Verifique servidores TURN ou configuração de rede.');
         updateStatus('Falha na conexão P2P. Tente novamente ou verifique sua rede.');
         document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
-      } else if (peerConnection.iceConnectionState === 'disconnected') {
+      } else if (peerConnection.iceConnectionstate === 'disconnected') {
         console.log('Conexão ICE desconectada. Tentando reconectar...');
         updateStatus('Conexão P2P desconectada. Tentando reconectar...');
       } else if (peerConnection.iceConnectionState === 'connected') {
@@ -198,7 +210,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (data.type === 'shoot') {
           bullets.push({ ...data.bullet, ownerId: data.playerId });
         } else if (data.type === 'gameOver') {
-          showEndGameScreen(data.winnerId == playerId ? 'Você venceu!' : 'Você perdeu!');
+          const isFinal = data.isFinal || false; // Verifica se é o fim da partida (10 pontos)
+          showEndGameScreen(data.winnerId == playerId ? 'Você venceu!' : 'Você perdeu!', isFinal);
+        } else if (data.type === 'restart') {
+          console.log('Recebido pedido de reinício do outro jogador');
+          performGameRestart();
+        } else if (data.type === 'scoreUpdate') {
+          scores = data.scores; // Atualiza o placar local com os dados recebidos
+          console.log('Scores atualizados:', scores);
         }
       } catch (error) {
         console.error('Erro ao processar mensagem do DataChannel:', error);
@@ -207,18 +226,19 @@ document.addEventListener('DOMContentLoaded', () => {
     dataChannel.onerror = (error) => {
       console.error('Erro no DataChannel:', error);
       updateStatus('Erro na conexão P2P.');
-      document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
+      document.getElementById('loadingOverlay').style.display = 'none';
     };
     dataChannel.onclose = () => {
       console.log('DataChannel fechado');
       updateStatus('Conexão P2P fechada.');
-      document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
+      document.getElementById('loadingOverlay').style.display = 'none';
     };
   }
 
   function startGame() {
     players = {};
     bullets = [];
+    scores = { 0: 0, 1: 0 }; // Inicializa o placar
     gameActive = true;
     // Inicializar jogadores com última direção de disparo (atirando um contra o outro)
     players[playerId] = {
@@ -236,6 +256,54 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loadingOverlay').style.display = 'none'; // Esconde o loading
     console.log('Jogo iniciado');
     gameLoop();
+  }
+
+  function restartGame() {
+    if (dataChannel?.readyState === 'open') {
+      // Envia mensagem de reinício para o outro jogador
+      dataChannel.send(JSON.stringify({ type: 'restart' }));
+      // Executa o reinício localmente
+      performGameRestart();
+    } else {
+      // Fallback: reconecta se a conexão estiver perdida
+      console.warn('DataChannel não está aberto. Reconectando...');
+      roomIdInput.value = currentRoomId;
+      joinRoom();
+    }
+  }
+
+  function performGameRestart() {
+    // Redefine o placar se algum jogador atingiu 10 pontos
+    if (scores[0] >= 10 || scores[1] >= 10) {
+      scores = { 0: 0, 1: 0 }; // Zera o placar
+      if (dataChannel?.readyState === 'open') {
+        dataChannel.send(JSON.stringify({ type: 'scoreUpdate', scores }));
+      }
+    }
+
+    // Redefine o estado do jogo
+    players = {};
+    bullets = [];
+    gameActive = true;
+
+    // Reinicializa o jogador local
+    players[playerId] = {
+      x: playerId === 0 ? 100 : 700,
+      y: 300,
+      dx: 0,
+      dy: 0,
+      radius: 20,
+      lastDx: playerId === 0 ? 1 : -1,
+      lastDy: 0,
+      lastShot: 0,
+    };
+
+    // Oculta a tela de fim de jogo
+    endGameScreen.style.display = 'none';
+    document.getElementById('loadingOverlay').style.display = 'none';
+
+    console.log('Jogo reiniciado');
+    gameLoop(); // Reinicia o loop do jogo
   }
 
   document.addEventListener('keydown', (e) => {
@@ -267,9 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   rematchBtn.addEventListener('click', () => {
-    closeConnections();
-    roomIdInput.value = currentRoomId; // Mantém o mesmo roomId
-    joinRoom(); // Reconecta à mesma sala
+    restartGame(); // Chama a função de reinício
   });
 
   exitBtn.addEventListener('click', () => {
@@ -360,10 +426,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const distance = Math.sqrt(dx * dx + dy * dy);
             if (distance < bullet.radius + p.radius) {
               console.log(`Jogador ${id} atingido por bala de ${bullet.ownerId}`);
+              scores[bullet.ownerId]++; // Incrementa o placar do jogador que acertou
+              const isFinal = scores[bullet.ownerId] >= 10; // Verifica se é o fim da partida
               if (dataChannel?.readyState === 'open') {
-                dataChannel.send(JSON.stringify({ type: 'gameOver', winnerId: bullet.ownerId }));
+                // Envia atualização do placar
+                dataChannel.send(JSON.stringify({ type: 'scoreUpdate', scores }));
+                // Envia mensagem de gameOver com informação de fim de partida
+                dataChannel.send(JSON.stringify({ type: 'gameOver', winnerId: bullet.ownerId, isFinal }));
               }
-              showEndGameScreen(bullet.ownerId == playerId ? 'Você venceu!' : 'Você perdeu!');
+              // Exibe a tela de fim de jogo com placar
+              showEndGameScreen(bullet.ownerId == playerId ? 'Você venceu!' : 'Você perdeu!', isFinal);
               return; // Para o loop do jogo
             }
           }
@@ -371,7 +443,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // Limpa o canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Desenhar o placar no canvas durante o jogo
+ctx.fillStyle = 'white';
+ctx.font = '20px Arial';
+ctx.textAlign = 'center'; // Alinha o texto ao centro
+ctx.fillText(`Jogador 1: ${scores[0]} | Jogador 2: ${scores[1]}`, canvas.width / 2, 30); // Posiciona no centro horizontal
+ctx.textAlign = 'start'; // Restaura o alinhamento padrão para evitar afetar outros desenhos
+    // Desenhar jogadores
     for (let id in players) {
       if (players[id]) {
         ctx.fillStyle = id == playerId ? 'blue' : 'red';
@@ -380,6 +461,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fill();
       }
     }
+
+    // Desenhar balas
     ctx.fillStyle = 'yellow';
     for (let bullet of bullets) {
       ctx.beginPath();
@@ -390,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     requestAnimationFrame(gameLoop);
   }
 });
+
 // Função para gerar ID aleatório de 5 caracteres
 window.generateRandomId = function () {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

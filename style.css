@@ -54,7 +54,12 @@ canvas {
   border-radius: 5px;
   transition: opacity 0.5s;
 }
-
+.scoreboard {
+  font-size: 9px;
+  color: #ccc; /* Cor mais suave, se desejar */
+  margin-top: 10px; /* Espaço acima do placar */
+  display: block; /* Garante que o placar fique em uma nova linha */
+}
 #mobileControls {
   display: none;
   position: fixed;
@@ -118,13 +123,6 @@ canvas {
   animation: spin 1s linear infinite;
 }
 
-#countdown {
-  z-index: 1000;
-  font-weight: bold;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-  font-size: 60px; /* Maior para destaque */
-  background: rgba(0, 0, 0, 0.8);
-}
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
