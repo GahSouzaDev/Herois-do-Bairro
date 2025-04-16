@@ -55,10 +55,15 @@ canvas {
   transition: opacity 0.5s;
 }
 .scoreboard {
-  font-size: 9px;
-  color: #ccc; /* Cor mais suave, se desejar */
-  margin-top: 10px; /* Espaço acima do placar */
-  display: block; /* Garante que o placar fique em uma nova linha */
+  margin-top: 15px; /* Espaço acima do placar */
+  color: #ccc; /* Cor mais suave */
+  text-align: center; /* Centraliza o texto, se desejar */
+}
+
+.scoreboard-line {
+  font-size: 15px; /* Tamanho da fonte para cada linha */
+  display: block; /* Cada linha em uma nova linha */
+  margin: 2px 0; /* Pequeno espaço entre linhas */
 }
 #mobileControls {
   display: none;

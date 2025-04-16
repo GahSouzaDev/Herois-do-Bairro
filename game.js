@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Função para mostrar a tela de fim de jogo com o placar
 // Função para mostrar a tela de fim de jogo com o placar
 // Função para mostrar a tela de fim de jogo com o placar
+// Função para mostrar a tela de fim de jogo com o placar
 function showEndGameScreen(message, isFinal = false) {
   gameActive = false; // Para o loop do jogo
   let displayMessage = message;
@@ -69,7 +70,14 @@ function showEndGameScreen(message, isFinal = false) {
   } else {
     rematchBtn.textContent = 'Próximo Jogo';
   }
-  endGameMessage.innerHTML = `${displayMessage}<br><span class="scoreboard">Placar: Jogador 1: ${scores[0]} | Jogador 2: ${scores[1]}</span>`; // Exibe o placar com classe
+  endGameMessage.innerHTML = `
+    ${displayMessage}<br>
+    <div class="scoreboard">
+      <span class="scoreboard-line">Placar:</span>
+      <span class="scoreboard-line">Jogador 1: ${scores[0]}</span>
+      <span class="scoreboard-line">Jogador 2: ${scores[1]}</span>
+    </div>
+  `; // Estrutura o placar em linhas separadas
   endGameScreen.style.display = 'block';
 }
 
