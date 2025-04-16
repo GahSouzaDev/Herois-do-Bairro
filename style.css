@@ -133,3 +133,12 @@ canvas {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+#joinInstructions {
+  color: white;
+  text-align: center; /* Centraliza o texto horizontalmente dentro do elemento */
+  position: absolute; /* Permite posicionar o elemento no centro da tela */
+  top: 50%; /* Posiciona o topo do elemento no meio vertical da tela */
+  left: 50%; /* Posiciona a esquerda do elemento no meio horizontal da tela */
+  transform: translate(-50%, -50%); /* Desloca o elemento para centralizá-lo exatamente */
+  width: 100%; /* Opcional: garante que o texto use a largura total para centralização */
+}
